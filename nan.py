@@ -9,13 +9,13 @@ from datetime import datetime, timedelta, timezone
 from matplotlib.dates import DateFormatter, HourLocator
 from requests.auth import HTTPBasicAuth
 
+# ---- CONFIGURATION ----
 DATA_BASE_URL = "http://196.188.116.60/Min_Data/"
 USERNAME = "user"
 PASSWORD = "@Ssgi*123"
 DAYS_TO_FETCH = 3
 Z_SCORE_THRESHOLD = 3
-WINDOW_SIZE = 60 # this one is for outlier detection in each 60min 
-UPDATE_INTERVAL = '5min' 
+WINDOW_SIZE = 60
 
 class NeutronDataProcessor:
     def __init__(self):
@@ -46,17 +46,12 @@ class NeutronDataProcessor:
 
     def _process_file(self, file_path):
         df = pd.read_csv(file_path, sep=r'\s+|,', engine='python', header=None,
-                         names=["Time", "Neutron_Count", "Temperature", "Pressure"])
+                        names=["Time", "Neutron_Count", "Temperature", "Pressure"])
+        
         match = re.search(r'(\d{4})(\d{3})', os.path.basename(file_path))
         year, doy = int(match[1]), int(match[2])
         base_date = datetime(year, 1, 1) + timedelta(days=doy - 1)
-        df['DateTime'] = df['Time'].apply(
-            lambda t: base_date + timedelta(
-                hours=int(str(int(t)).zfill(4)[:2]),
-                minutes=int(str(int(t)).zfill(4)[2:])
-            ) if pd.notna(t) else base_date
-        )
-
+        
         df = df.set_index('DateTime').drop(columns=['Time'])
         return df.replace(0, np.nan)
 
@@ -81,24 +76,43 @@ class NeutronDataProcessor:
         #return combined.resample('1T').asfreq().interpolate()
         return combined.resample('1min').asfreq().interpolate()
 
-
     def plot_data(self):
-        fig, axs = plt.subplots(3, 1, figsize=(15, 10), sharex=True)
-        params = [
-            ('Neutron_Count', 'blue', 'Neutron Count (CPM)'),
-            ('Temperature', 'orange', 'Temperature (°C)'),
-            ('Pressure', 'purple', 'Pressure (hPa)')
-        ]
+        plt.style.use('seaborn-v0_8')
+        fig, axs = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
+        
+        # Custom styling parameters
+        plot_params = {
+            'Neutron_Count': ('#1f77b4', 'Neutron Count (CPW)'),
+            'Temperature': ('#ff7f0e', 'Temperature (°C)'),
+            'Pressure': ('#2ca02c', 'Pressure (hPa)')
+        }
 
-        for idx, (col, color, title) in enumerate(params):
-            axs[idx].scatter(self.df.index, self.df[col], s=5, color=color, alpha=0.7)
-            axs[idx].set_ylabel(title)
+        for idx, col in enumerate(plot_params.keys()):
+            color, title = plot_params[col]
+            axs[idx].plot(
+                self.df.index,
+                self.df[col],
+                color=color,
+                linewidth=1.2,
+                alpha=0.8
+            )
+            
+            # Formatting
+            axs[idx].set_ylabel(title, fontsize=10, labelpad=12)
             axs[idx].xaxis.set_major_locator(HourLocator(interval=6))
-            axs[idx].xaxis.set_major_formatter(DateFormatter('%m-%d %H:%M'))
-            axs[idx].grid(True, linestyle=':', alpha=0.5)
+            axs[idx].xaxis.set_major_formatter(DateFormatter('%H:%M\n%m-%d'))
+            axs[idx].xaxis.set_minor_locator(HourLocator(interval=3))
+            axs[idx].grid(True, which='major', linestyle='--', linewidth=0.5)
+            axs[idx].tick_params(axis='both', which='major', labelsize=9)
+            
+            # Remove spines
+            for spine in ['top', 'right']:
+                axs[idx].spines[spine].set_visible(False)
 
-        plt.xlabel('Time (UTC)')
+        plt.xlabel('Time (UTC)', fontsize=10, labelpad=15)
+        plt.suptitle('Environmental Monitoring Data', y=0.95, fontsize=12)
         plt.tight_layout()
+        plt.subplots_adjust(hspace=0.15)
         plt.show()
 
     def __del__(self):

@@ -60,7 +60,7 @@ def _load_initial_data(self):
 
 
     def _get_csv_filenames(self):
-        response = requests.get(DATA_BASE_URL, auth=self.auth)
+        response = requests.get(DATA_BASE_URL, auth=self.auth) 
         file_list = re.findall(r'(\d{7}_min_Ethiopia\.csv)', response.text)
         return [DATA_BASE_URL + f for f in sorted(file_list)[-DAYS_TO_FETCH:]]
 
